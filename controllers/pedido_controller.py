@@ -123,7 +123,15 @@ class PedidoController:
                     "Solicitante", "Observacoes", "Status", "Ultima_Atualizacao",
                     "Responsavel_Atualizacao"
                 ])
-            return pd.read_excel(self.arquivo_pedidos, sheet_name='Pedidos')
+            df = pd.read_excel(self.arquivo_pedidos, sheet_name='Pedidos')
+
+            # Garantir que as colunas 'Ultima_Atualizacao' e 'Responsavel_Atualizacao' existam
+            if 'Ultima_Atualizacao' not in df.columns:
+                df['Ultima_Atualizacao'] = ""
+            if 'Responsavel_Atualizacao' not in df.columns:
+                df['Responsavel_Atualizacao'] = ""
+
+            return df
         except Exception as e:
             raise Exception(f"Erro ao ler pedidos: {str(e)}")
 
