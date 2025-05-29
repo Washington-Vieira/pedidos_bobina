@@ -157,3 +157,13 @@ class GitHubSync:
                 st.success(message)
             else:
                 st.error(message)
+
+    def render_secrets_page(self):
+        """Renderiza página de segredos"""
+        st.title("🔑 Gerenciamento de Segredos")
+
+        st.info("Os segredos agora são gerenciados diretamente pelo Streamlit Cloud ou variáveis de ambiente.")
+
+        # Exibir segredos disponíveis (somente para debug, remova em produção)
+        if st.checkbox("Mostrar segredos disponíveis (apenas para debug)"):
+            st.json(st.secrets)
