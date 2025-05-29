@@ -11,6 +11,7 @@ venv/
 
 # Streamlit
 .streamlit/secrets.toml
+.secrets.toml
 
 # Arquivo de backup
 pedidos/backup/
