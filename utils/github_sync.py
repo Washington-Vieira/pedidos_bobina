@@ -94,7 +94,11 @@ class GitHubSync:
                     # Commit e push das alterações
                     repo.index.add(['pedidos/*.xlsx'])
                     repo.index.commit(f'Atualização automática de pedidos - {datetime.now().strftime("%d/%m/%Y %H:%M")}')
-                    repo.remotes.origin.push()
+
+                    # Usar o token diretamente no push
+                    origin = repo.remotes.origin
+                    origin.set_url(self.config['github_repo'])
+                    origin.push()
 
                     # Copiar arquivos do repo de volta para local
                     if os.path.exists(dest_pedidos):
