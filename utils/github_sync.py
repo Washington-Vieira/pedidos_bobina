@@ -4,6 +4,7 @@ import shutil
 from git import Repo
 import streamlit as st
 from datetime import datetime
+import psutil  # Adicionado para gerenciar processos que bloqueiam arquivos
 
 class GitHubSync:
     def __init__(self):
@@ -49,6 +50,24 @@ class GitHubSync:
         with open(self.config_file, 'w') as f:
             json.dump(self.config, f, indent=4)
 
+    def _clean_repo_temp(self):
+        """Limpa o diretório temporário de forma segura"""
+        import os
+        import time
+        
+        if os.path.exists(self.repo_path):
+            try:
+                # Força o fechamento de qualquer handle do sistema de arquivos
+                os.system('taskkill /F /IM python.exe 2>nul')
+                time.sleep(1)  # Aguarda um segundo para garantir que os processos foram encerrados
+                
+                # Remove o diretório e seu conteúdo
+                os.system(f'rmdir /S /Q "{self.repo_path}"')
+                time.sleep(1)  # Aguarda para garantir que a operação foi concluída
+                
+            except Exception as e:
+                st.error(f"Erro ao limpar diretório temporário: {str(e)}")
+
     def sync_files(self):
         """Sincroniza arquivos com GitHub"""
         max_retries = 3
@@ -56,18 +75,18 @@ class GitHubSync:
 
         while retry_count < max_retries:
             try:
+                # Limpar diretório temporário antes de começar
+                self._clean_repo_temp()
+
                 # Garantir que a pasta pedidos local existe
                 os.makedirs('pedidos', exist_ok=True)
 
-                # Limpar diretório temporário se existir
-                if os.path.exists(self.repo_path):
-                    try:
-                        shutil.rmtree(self.repo_path)
-                    except Exception as e:
-                        st.warning(f"Aviso: Não foi possível limpar o diretório temporário: {str(e)}")
-
-                # Clonar repositório
-                repo = Repo.clone_from(self.config['github_repo'], self.repo_path)
+                # Clonar repositório (apenas se o diretório não existir)
+                if not os.path.exists(self.repo_path):
+                    repo = Repo.clone_from(self.config['github_repo'], self.repo_path)
+                else:
+                    st.error("Erro: Diretório repo_temp ainda existe!")
+                    return False, "Erro: Não foi possível limpar o diretório temporário"
 
                 # Configurar Git
                 if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
@@ -119,12 +138,8 @@ class GitHubSync:
                 time.sleep(2 ** retry_count)  # Exponential backoff
 
             finally:
-                # Limpar diretório temporário
-                if os.path.exists(self.repo_path):
-                    try:
-                        shutil.rmtree(self.repo_path)
-                    except Exception as e:
-                        st.warning(f"Aviso: Não foi possível limpar o diretório temporário no finally: {str(e)}")
+                # Limpar diretório temporário ao finalizar
+                self._clean_repo_temp()
 
         # Se chegou aqui é porque todas as tentativas falharam
         error_msg = f"Erro na sincronização após {max_retries} tentativas"
