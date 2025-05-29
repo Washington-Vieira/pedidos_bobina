@@ -26,8 +26,7 @@ class GitHubSync:
         """Salva configuração atual"""
         with open(self.config_file, 'w') as f:
             json.dump(self.config, f, indent=4)
-    
-    def sync_files(self):
+      def sync_files(self):
         """Sincroniza arquivos com GitHub"""
         try:
             if not os.path.exists('repo_temp'):
@@ -36,13 +35,15 @@ class GitHubSync:
             repo = Repo('repo_temp')
             repo.remotes.origin.pull()
             
-            # Sincroniza arquivos
+            # Sincroniza arquivos de mapeamento e pedidos
             shutil.copy2(self.config['local_mapeamento'], 
-                        os.path.join('repo_temp', 'Mapeamento de Racks - Cabos.xlsx'))
+                        os.path.join('repo_temp', 'pedidos', 'Mapeamento de Racks - Cabos.xlsx'))
+            shutil.copy2(self.config['local_pedidos'], 
+                        os.path.join('repo_temp', 'pedidos', 'pedidos.xlsx'))
             
             # Push changes
-            repo.index.add('*')
-            repo.index.commit('Atualização automática')
+            repo.index.add(['pedidos/*.xlsx'])
+            repo.index.commit('Atualização automática de pedidos')
             repo.remotes.origin.push()
             
             return True, "Sincronização concluída com sucesso!"

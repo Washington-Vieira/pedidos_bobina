@@ -152,7 +152,9 @@ class PedidoController:
             return "REQ-001"
 
     def salvar_pedido(self, pedido_info: dict) -> str:
-        """Salva o pedido"""
+        """Salva o pedido e sincroniza com GitHub"""
+        from utils.github_sync import GitHubSync
+        
         numero_pedido = self._gerar_numero_pedido()
         
         try:
@@ -201,6 +203,12 @@ class PedidoController:
             with pd.ExcelWriter(self.arquivo_pedidos, engine='openpyxl') as writer:
                 df_pedidos.to_excel(writer, sheet_name='Pedidos', index=False)
                 df_itens.to_excel(writer, sheet_name='Itens', index=False)
+            
+            # Sincronizar com GitHub
+            sync = GitHubSync()
+            success, message = sync.sync_files()
+            if not success:
+                st.warning(f"⚠️ Aviso: {message}")
             
             return numero_pedido
             
