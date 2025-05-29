@@ -15,8 +15,8 @@ class PedidoController:
         """
         self.caminho_planilha = caminho_planilha
         self.pedidos = []
-        self.arquivo_pedidos = "pedidos.xlsx"
-        self.diretorio_backup = "backup"
+        self.arquivo_pedidos = os.path.join('pedidos', 'pedidos.xlsx')
+        self.diretorio_backup = os.path.join('pedidos', 'backup')
         
         # Criar diretório de backup se não existir
         os.makedirs(self.diretorio_backup, exist_ok=True)
@@ -402,4 +402,4 @@ class PedidoController:
             os.remove(temp_html)
             
         except Exception as e:
-            raise Exception(f"Erro ao imprimir pedido: {str(e)}") 
+            raise Exception(f"Erro ao imprimir pedido: {str(e)}")

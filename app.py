@@ -20,10 +20,8 @@ st.set_page_config(
 
 # Caminho da planilha de mapeamento
 PLANILHA_MAPEAMENTO = os.getenv('CAMINHO_PLANILHA', os.path.join(
-    os.path.expanduser("~"),
-    "OneDrive - Yazaki",
-    "Solicitação",
-    "Mapeamento de Racks - Cabos.xlsx"
+    'pedidos',
+    'Mapeamento de Racks - Cabos.xlsx'
 ))
 
 def estilizar_sidebar():
