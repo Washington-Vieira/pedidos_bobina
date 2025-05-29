@@ -30,11 +30,17 @@ class GitHubSync:
         try:
             if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
                 if 'GITHUB_TOKEN' in st.secrets:
+                    # Substituir a URL do repositório para incluir o token
+                    token = st.secrets['GITHUB_TOKEN']
                     repo_url = self.config['github_repo'].replace(
                         'https://', 
-                        f'https://{st.secrets["GITHUB_TOKEN"]}@'
+                        f'https://{token}@'
                     )
                     self.config['github_repo'] = repo_url
+                    
+                    # Configurar nome e email do usuário para commits
+                    Repo.init(self.repo_path).git.config('user.name', 'Streamlit Cloud')
+                    Repo.init(self.repo_path).git.config('user.email', 'noreply@streamlit.io')
         except Exception as e:
             st.error(f"Erro ao configurar Git: {str(e)}")
 
