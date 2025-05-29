@@ -16,7 +16,7 @@ class GitHubSync:
                 self.config = json.load(f)
         else:
             self.config = {
-                'github_repo': 'https://github.com/seu-usuario/seu-repo.git',
+                'github_repo': 'https://github.com/Washington-Vieira/pedidos_bobina.git',
                 'local_mapeamento': 'pedidos/Mapeamento de Racks - Cabos.xlsx',
                 'local_pedidos': 'pedidos/pedidos.xlsx'
             }
