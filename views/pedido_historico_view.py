@@ -2,12 +2,11 @@ import streamlit as st
 from controllers.pedido_controller import PedidoController
 from datetime import datetime
 import pandas as pd
-import win32print
-import win32api
 import os
 import tempfile
 import time
 from fpdf import FPDF
+from utils.print_manager import PrintManager
 
 class PedidoHistoricoView:
     def __init__(self, controller: PedidoController):
@@ -290,14 +289,6 @@ Quantidade: {item['quantidade']}
         
         return texto
 
-    def _get_impressora_fiscal(self):
-        """Obtém a impressora fiscal padrão do sistema"""
-        try:
-            impressora_padrao = win32print.GetDefaultPrinter()
-            return impressora_padrao
-        except Exception as e:
-            raise Exception(f"Erro ao obter impressora fiscal: {str(e)}")
-
     def _criar_pdf(self, texto: str) -> str:
         """Cria um arquivo PDF com o conteúdo do pedido"""
         pdf = FPDF()
@@ -312,40 +303,36 @@ Quantidade: {item['quantidade']}
         
         # Salvar PDF
         nome_arquivo = f"pedido_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        caminho_pdf = os.path.join(os.path.expanduser("~"), "Downloads", nome_arquivo)
-        pdf.output(caminho_pdf)
         
+        # No Streamlit Cloud, salvar na pasta temporária
+        if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
+            caminho_pdf = os.path.join('/tmp', nome_arquivo)
+        else:
+            caminho_pdf = os.path.join(os.path.expanduser("~"), "Downloads", nome_arquivo)
+            
+        pdf.output(caminho_pdf)
         return caminho_pdf
 
     def imprimir_pedido(self, numero_pedido: str):
-        """Imprime o pedido na impressora fiscal ou salva como PDF"""
+        """Gera um PDF do pedido"""
         try:
             # Obter dados do pedido
             pedido = self.controller.get_pedido_detalhes(numero_pedido)
             texto = self.formatar_pedido_para_impressao(pedido)
             
-            try:
-                # Tentar obter impressora fiscal
-                impressora = self._get_impressora_fiscal()
-                if not impressora:
-                    raise Exception("Nenhuma impressora encontrada")
-                
-                # Criar arquivo temporário
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as f:
-                    f.write(texto)
-                    temp_file = f.name
-                
-                # Imprimir diretamente
-                win32api.ShellExecute(0, "print", temp_file, None, ".", 0)
-                
-                # Aguardar um pouco antes de remover o arquivo
-                time.sleep(2)
-                os.unlink(temp_file)
-                
-            except Exception as e:
-                # Se não conseguir imprimir, salvar como PDF silenciosamente
-                caminho_pdf = self._criar_pdf(texto)
-                st.info(f"Pedido salvo em: {caminho_pdf}")
+            # Gerar PDF
+            caminho_pdf = self._criar_pdf(texto)
+            
+            # Mostrar link para download
+            if os.path.exists(caminho_pdf):
+                with open(caminho_pdf, 'rb') as f:
+                    pdf_bytes = f.read()
+                st.download_button(
+                    label="📥 Baixar PDF do Pedido",
+                    data=pdf_bytes,
+                    file_name=os.path.basename(caminho_pdf),
+                    mime="application/pdf"
+                )
             
         except Exception as e:
             raise Exception(f"Erro ao processar pedido: {str(e)}") 

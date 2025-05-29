@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from datetime import datetime
-import win32print
+import platform
 
 class ConfiguracoesView:
     def __init__(self):
@@ -14,43 +14,16 @@ class ConfiguracoesView:
         self.arquivo_pedidos = os.path.join(self.base_dir, "pedidos.xlsx")
         self.arquivo_backup = os.path.join(self.base_dir, "backup")
 
-    def _get_impressoras_disponiveis(self):
-        """Retorna lista de impressoras disponíveis no sistema"""
-        try:
-            impressoras = []
-            for p in win32print.EnumPrinters(2):  # 2 = PRINTER_ENUM_LOCAL
-                impressoras.append(p[2])
-            return sorted(impressoras)
-        except Exception:
-            return []
-
     def mostrar_interface(self):
         st.markdown("### ⚙️ Configurações do Sistema", unsafe_allow_html=True)
         
-        # Seção de Impressora
-        st.markdown("#### 🖨️ Configuração da Impressora")
-        
-        # Obter impressora atual
-        impressora_atual = win32print.GetDefaultPrinter()
-        
-        # Listar impressoras disponíveis
-        impressoras = self._get_impressoras_disponiveis()
-        
-        if impressoras:
-            impressora_selecionada = st.selectbox(
-                "Selecione a Impressora Fiscal",
-                options=impressoras,
-                index=impressoras.index(impressora_atual) if impressora_atual in impressoras else 0
-            )
-            
-            if st.button("💾 Definir como Padrão"):
-                try:
-                    win32print.SetDefaultPrinter(impressora_selecionada)
-                    st.success(f"✅ Impressora {impressora_selecionada} definida como padrão!")
-                except Exception as e:
-                    st.error(f"❌ Erro ao definir impressora padrão: {str(e)}")
-        else:
-            st.error("❌ Nenhuma impressora encontrada no sistema")
+        # Informações do Sistema
+        st.markdown("#### 💻 Informações do Sistema")
+        st.markdown(f"""
+        - **Sistema Operacional:** {platform.system()}
+        - **Versão Python:** {platform.python_version()}
+        - **Ambiente:** {"Streamlit Cloud" if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1' else "Local"}
+        """)
         
         st.markdown("---")
         
