@@ -1,17 +1,15 @@
 import os
 import json
 import shutil
-from git import Repo
+import subprocess
 import streamlit as st
 from datetime import datetime
-import psutil  # Adicionado para gerenciar processos que bloqueiam arquivos
 
 class GitHubSync:
     def __init__(self):
         self.config_file = "config.json"
-        self.repo_path = "repo_temp"
+        self.repo_dir = "pedidos"  # Diretório fixo onde os arquivos serão mantidos
         self.load_config()
-        self._setup_git()
 
     def load_config(self):
         """Carrega ou cria configuração padrão"""
@@ -26,125 +24,84 @@ class GitHubSync:
             }
             self.save_config()
 
-    def _setup_git(self):
-        """Configura o Git com as credenciais"""
-        try:
-            if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
-                if 'GITHUB_TOKEN' in st.secrets:
-                    # Substituir a URL do repositório para incluir o token
-                    token = st.secrets['GITHUB_TOKEN']
-                    repo_url = self.config['github_repo'].replace(
-                        'https://', 
-                        f'https://{token}@'
-                    )
-                    self.config['github_repo'] = repo_url
-                    
-                    # Configurar nome e email do usuário para commits
-                    Repo.init(self.repo_path).git.config('user.name', 'Streamlit Cloud')
-                    Repo.init(self.repo_path).git.config('user.email', 'noreply@streamlit.io')
-        except Exception as e:
-            st.error(f"Erro ao configurar Git: {str(e)}")
-
     def save_config(self):
         """Salva configuração atual"""
         with open(self.config_file, 'w') as f:
             json.dump(self.config, f, indent=4)
 
-    def _clean_repo_temp(self):
-        """Limpa o diretório temporário de forma segura"""
-        import os
-        import time
-        
-        if os.path.exists(self.repo_path):
-            try:
-                # Força o fechamento de qualquer handle do sistema de arquivos
-                os.system('taskkill /F /IM python.exe 2>nul')
-                time.sleep(1)  # Aguarda um segundo para garantir que os processos foram encerrados
-                
-                # Remove o diretório e seu conteúdo
-                os.system(f'rmdir /S /Q "{self.repo_path}"')
-                time.sleep(1)  # Aguarda para garantir que a operação foi concluída
-                
-            except Exception as e:
-                st.error(f"Erro ao limpar diretório temporário: {str(e)}")
+    def _run_git_command(self, command, check_error=True):
+        """Executa um comando git no diretório do repositório"""
+        try:
+            result = subprocess.run(
+                command,
+                cwd=self.repo_dir,
+                capture_output=True,
+                text=True,
+                shell=True
+            )
+            if check_error and result.returncode != 0:
+                raise Exception(f"Erro no comando Git: {result.stderr}")
+            return result.stdout.strip()
+        except Exception as e:
+            st.error(f"Erro ao executar comando Git: {str(e)}")
+            raise
 
     def sync_files(self):
         """Sincroniza arquivos com GitHub"""
-        max_retries = 3
-        retry_count = 0
+        try:
+            # Configurar Git se estiver no Streamlit Cloud
+            if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1' and 'GITHUB_TOKEN' in st.secrets:
+                token = st.secrets['GITHUB_TOKEN']
+                repo_url = self.config['github_repo'].replace(
+                    'https://',
+                    f'https://{token}@'
+                )
+            else:
+                repo_url = self.config['github_repo']
 
-        while retry_count < max_retries:
-            try:
-                # Limpar diretório temporário antes de começar
-                self._clean_repo_temp()
+            # Inicializar ou atualizar o repositório Git
+            if not os.path.exists(os.path.join(self.repo_dir, '.git')):
+                # Se não existe, inicializa um novo repositório
+                os.makedirs(self.repo_dir, exist_ok=True)
+                self._run_git_command('git init')
+                self._run_git_command(f'git remote add origin {repo_url}')
+            else:
+                # Se existe, configura a URL remota
+                self._run_git_command(f'git remote set-url origin {repo_url}')
 
-                # Garantir que a pasta pedidos local existe
-                os.makedirs('pedidos', exist_ok=True)
+            # Configurar usuário do Git
+            if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
+                self._run_git_command('git config user.name "Streamlit Cloud"')
+                self._run_git_command('git config user.email "noreply@streamlit.io"')
 
-                # Clonar repositório (apenas se o diretório não existir)
-                if not os.path.exists(self.repo_path):
-                    repo = Repo.clone_from(self.config['github_repo'], self.repo_path)
-                else:
-                    st.error("Erro: Diretório repo_temp ainda existe!")
-                    return False, "Erro: Não foi possível limpar o diretório temporário"
+            # Atualizar do remoto
+            self._run_git_command('git fetch origin')
+            self._run_git_command('git reset --hard origin/main', check_error=False)
 
-                # Configurar Git
-                if os.getenv('IS_STREAMLIT_CLOUD', '0') == '1':
-                    if 'GITHUB_TOKEN' in st.secrets:
-                        repo.git.config('user.name', 'Streamlit Cloud')
-                        repo.git.config('user.email', 'noreply@example.com')
+            # Copiar arquivos atualizados
+            if os.path.exists(self.config['local_mapeamento']):
+                shutil.copy2(self.config['local_mapeamento'], 
+                           os.path.join(self.repo_dir, 'Mapeamento de Racks - Cabos.xlsx'))
+            if os.path.exists(self.config['local_pedidos']):
+                shutil.copy2(self.config['local_pedidos'], 
+                           os.path.join(self.repo_dir, 'pedidos.xlsx'))
 
-                # Garantir que a pasta pedidos existe no repo
-                pedidos_path = os.path.join(self.repo_path, 'pedidos')
-                os.makedirs(pedidos_path, exist_ok=True)
+            # Adicionar e commitar mudanças
+            self._run_git_command('git add *.xlsx')
+            self._run_git_command(
+                f'git commit -m "Atualização automática de pedidos - {datetime.now().strftime("%d/%m/%Y %H:%M")}"',
+                check_error=False
+            )
 
-                # Sincronizar arquivos
-                dest_mapeamento = os.path.join(pedidos_path, 'Mapeamento de Racks - Cabos.xlsx')
-                dest_pedidos = os.path.join(pedidos_path, 'pedidos.xlsx')
+            # Push das alterações
+            self._run_git_command('git push -u origin main')
 
-                # Copiar arquivos locais para o repo
-                if os.path.exists(self.config['local_mapeamento']):
-                    shutil.copy2(self.config['local_mapeamento'], dest_mapeamento)
-                if os.path.exists(self.config['local_pedidos']):
-                    shutil.copy2(self.config['local_pedidos'], dest_pedidos)
+            return True, "Sincronização concluída com sucesso!"
 
-                # Verificar se há mudanças para commitar
-                if repo.is_dirty(untracked_files=True):
-                    # Commit e push das alterações
-                    repo.index.add(['pedidos/*.xlsx'])
-                    repo.index.commit(f'Atualização automática de pedidos - {datetime.now().strftime("%d/%m/%Y %H:%M")}')
-
-                    # Usar o token diretamente no push
-                    origin = repo.remotes.origin
-                    origin.set_url(self.config['github_repo'])
-                    origin.push()
-
-                    # Copiar arquivos do repo de volta para local
-                    if os.path.exists(dest_pedidos):
-                        os.makedirs(os.path.dirname(self.config['local_pedidos']), exist_ok=True)
-                        shutil.copy2(dest_pedidos, self.config['local_pedidos'])
-
-                return True, "Sincronização concluída com sucesso!"
-
-            except Exception as e:
-                retry_count += 1
-                if retry_count >= max_retries:
-                    error_msg = f"Erro na sincronização após {max_retries} tentativas: {str(e)}"
-                    st.error(error_msg)
-                    return False, error_msg
-
-                # Aguardar antes de tentar novamente
-                import time
-                time.sleep(2 ** retry_count)  # Exponential backoff
-
-            finally:
-                # Limpar diretório temporário ao finalizar
-                self._clean_repo_temp()
-
-        # Se chegou aqui é porque todas as tentativas falharam
-        error_msg = f"Erro na sincronização após {max_retries} tentativas"
-        st.error(error_msg)
-        return False, error_msg
+        except Exception as e:
+            error_msg = f"Erro na sincronização: {str(e)}"
+            st.error(error_msg)
+            return False, error_msg
 
     def render_config_page(self):
         """Renderiza página de configuração"""
@@ -186,9 +143,6 @@ class GitHubSync:
     def render_secrets_page(self):
         """Renderiza página de segredos"""
         st.title("🔑 Gerenciamento de Segredos")
-
         st.info("Os segredos agora são gerenciados diretamente pelo Streamlit Cloud ou variáveis de ambiente.")
-
-        # Exibir segredos disponíveis (somente para debug, remova em produção)
         if st.checkbox("Mostrar segredos disponíveis (apenas para debug)"):
             st.json(st.secrets)
