@@ -1,0 +1,7 @@
+streamlit==1.31.1
+pandas==2.2.0
+openpyxl==3.1.2
+python-dotenv==1.0.1
+pywin32==306
+fpdf2==2.7.8
+gitpython==3.1.41
